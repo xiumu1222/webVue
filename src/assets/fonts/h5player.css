@@ -1,0 +1,75 @@
+@font-face {
+  font-family: 'icomoon';
+  src:  url('h5player/icomoon.eot?dh86gm');
+  src:  url('h5player/icomoon.eot?dh86gm#iefix') format('embedded-opentype'),
+  url('h5player/icomoon.ttf?dh86gm') format('truetype'),
+  url('h5player/icomoon.woff?dh86gm') format('woff'),
+  url('h5player/icomoon.svg?dh86gm#icomoon') format('svg');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+[class^="icon-"], [class*=" icon-"] {
+  /* use !important to prevent issues with browser extensions that change fonts */
+  font-family: 'icomoon' !important;
+  speak: never;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+
+  /* Better Font Rendering =========== */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-h5-right:before {
+  content: "\e90d";
+}
+.icon-h5-pause2:before {
+  content: "\e90e";
+}
+.icon-h5-play2:before {
+  content: "\e90f";
+}
+.icon-h5-full:before {
+  content: "\e900";
+}
+.icon-h5-exit:before {
+  content: "\e901";
+}
+.icon-h5-prev:before {
+  content: "\e902";
+}
+.icon-h5-next:before {
+  content: "\e903";
+}
+.icon-h5-frameback:before {
+  content: "\e904";
+}
+.icon-h5-frameplay:before {
+  content: "\e905";
+}
+.icon-h5-window:before {
+  content: "\e906";
+}
+.icon-h5-slow:before {
+  content: "\e907";
+}
+.icon-h5-fast:before {
+  content: "\e908";
+}
+.icon-h5-soundoff:before {
+  content: "\e909";
+}
+.icon-h5-soundon:before {
+  content: "\e90a";
+}
+.icon-h5-pause:before {
+  content: "\e90b";
+}
+.icon-h5-left:before {
+  content: "\e90c";
+}

@@ -1,0 +1,693 @@
+"use strict";
+
+import {
+  app,
+  protocol,
+  BrowserWindow,
+  ipcMain,
+  net,
+  globalShortcut,
+  Menu,
+  shell,
+} from "electron";
+import { createProtocol } from "vue-cli-plugin-electron-builder/lib";
+import commonServer from "./server/common.js";
+import electronServer from "./httpserver.js";
+const fs = require("fs");
+const path = require("path");
+// import store from '@/store/index.js'
+let serverBaseUrl = "";
+let serverToken = "";
+// const netprotocol = 'https://'
+// const querystring = require('querystring')
+// import installExtension, { VUEJS_DEVTOOLS } from 'electron-devtools-installer'
+const isDevelopment = process.env.NODE_ENV !== "production";
+console.log(process.versions.node);
+console.log(process.versions.electron);
+app.allowRendererProcessReuse = false;
+// Keep a global reference of the window object, if you don't, the window will
+// be closed automatically when the JavaScript object is garbage collected.
+let win;
+
+//
+// let LogicSdkCppUrl = ''
+// if (process.env.NODE_ENV !== "development") {
+//   LogicSdkCppUrl = `${__dirname.substring(
+//     0,
+//     __dirname.indexOf("app.asar")
+//   )}app\\LogicSdk\\build\\Release\\Node_LogicSdk.node`;
+// } else {
+//   LogicSdkCppUrl = `${__dirname.substring(
+//     0,
+//     __dirname.indexOf("drugregisterclient-frontend")
+//   )}drugregisterclient-frontend\\public\\LogicSdk\\build\\Release\\Node_LogicSdk.node`;
+// }
+// console.log('LogicSdkCppUrl',LogicSdkCppUrl)
+
+// const setpac_path = path.join(process.cwd(), '/resources/set_pac.node');
+
+// const requireFunc = typeof __webpack_require__ === "function" ? __non_webpack_require__ : require;
+// const setPac = requireFunc(setpac_path);
+// const LogicSdk = require('../public/LogicSdk/build/Release/Node_LogicSdk.node');
+// console.log('LogicSdk',LogicSdk)
+// Scheme must be registered before the app is ready
+protocol.registerSchemesAsPrivileged([
+  { scheme: "app", privileges: { secure: true, standard: true } },
+]);
+function createWindow() {
+  // Create the browser window.
+  win = new BrowserWindow({
+    // width: 1388,
+    // height: 780,
+    // minWidth: 1388,
+    // minHeight: 780,
+    width: 1200,
+    height: 720,
+
+    // useContentSize: true,
+    show: false,
+    resizable: false,
+    fullscreen: true,
+    webPreferences: {
+      // Use pluginOptions.nodeIntegration, leave this alone
+      // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
+      nodeIntegration: true,
+      webSecurity: false,
+      contextIsolation: false,
+      // nodeIntegrationInWorker: true
+      // webSecurity: false
+    },
+    frame: false,
+    titleBarStyle: "hidden",
+  });
+  // Menu.setApplicationMenu(null)
+  win.setAlwaysOnTop(true, "floating");
+  if (process.env.WEBPACK_DEV_SERVER_URL) {
+    // Load the url of the dev server if in development mode
+    win.loadURL(process.env.WEBPACK_DEV_SERVER_URL + "home.html");
+    // console.log(process.env)
+    if (!process.env.IS_TEST) win.webContents.openDevTools();
+  } else {
+    createProtocol("app");
+    // Load the index.html when not in development
+    win.loadURL("app://./home.html");
+  }
+  win.once("ready-to-show", () => {
+    // win.maximize()
+    // win.removeMenu()
+    win.show();
+  });
+
+  // win.setResizable(false)
+
+  win.on("closed", (event) => {
+    // event.sender.send("closeRealPlay", '');
+    win = null;
+  });
+  const winWidth = 1920;
+  const winHeight = 1080;
+  // win.on('resize', () => {
+  //   const winSize = win.getSize()
+
+  //   if (winSize[0] < 1300 || winSize[1] < 750) {
+  //     win.setSize(1200, 720)
+  //     return false
+  //   } else {
+  //     console.log('resize改变')
+  //     const newWinWidth = winSize[0]
+  //     const newHinHeight = winSize[1]
+  //     if (newWinWidth !== winWidth) {
+  //       win.setSize(newWinWidth, parseInt(newWinWidth * 1080 / 1920))
+  //     } else if (newHinHeight !== winHeight) {
+  //       win.setSize(parseInt(newHinHeight * 1920 / 1080), newHinHeight)
+  //     }
+  //     winWidth = newWinWidth
+  //     winHeight = newHinHeight
+  //   }
+
+  //   // console.log(win.getSize())
+  // })
+
+  ipcMain.on("down-report", function (event, arg) {
+    win.webContents.downloadURL(arg);
+  });
+
+  win.on("maximize", function () {
+    console.log("进入最大化");
+    win.webContents.send("setIsMax", true);
+  });
+
+  win.on("unmaximize", function () {
+    console.log("离开最大化");
+    win.webContents.send("setIsMax", false);
+  });
+
+  ipcMain.on("window-min", function () {
+    // 收到渲染进程的窗口最小化操作的通知，并调用窗口最小化函数，执行该操作
+    win.minimize();
+  });
+
+  // 2. 窗口 最大化、恢复
+  ipcMain.on("window-max", function (event, arg) {
+    if (win.isMaximized()) {
+      // 为true表示窗口已最大化
+      win.restore(); // 将窗口恢复为之前的状态.
+      event.sender.send("window-max-reply", "false");
+    } else {
+      win.maximize();
+      event.sender.send("window-max-reply", "true");
+    }
+    // win.setResizable(false)
+  });
+
+  // 3. 关闭窗口
+  ipcMain.on("window-close", function () {
+    win.close();
+  });
+
+  // 页面刷新或初始化后调用
+  ipcMain.on("page-reload", function () {
+    // console.log('page-reload')
+    // win.hide()
+    // setTimeout(function () {
+    //   if (win.isMaximized()) {
+    //     win.unmaximize()
+    //   }
+    //   win.setMinimumSize(1200, 720)
+    //   win.setSize(1200, 720)
+    //   win.setResizable(false)
+    //   win.center()
+    //   win.show()
+    // }, 500)
+    // setTimeout(function () {
+    // }, 500)
+  });
+
+  // 获取客户端mac地址和IP地址
+  ipcMain.on("getMacIp", function (event) {
+    const os = require("os");
+    const networkInterfaces = os.networkInterfaces();
+    let clientMac = "";
+    let clientIP = "";
+    for (const key in networkInterfaces) {
+      networkInterfaces[key].forEach((item) => {
+        if (item.family === "IPv4" && item.address !== "127.0.0.1") {
+          clientMac = item.mac;
+          clientIP = item.address;
+        }
+      });
+    }
+    event.sender.send("getMacIpCB", { clientMac, clientIP });
+  });
+
+  let configBaseUrl = "";
+  console.log("process.env.NODE_ENV", process.env.NODE_ENV);
+  if (process.env.NODE_ENV !== "development") {
+    configBaseUrl = `${__dirname}\\config.json`;
+  } else {
+    configBaseUrl = `${process.cwd()}/config.json`;
+  }
+  // 读取配置文件
+  ipcMain.on("read-config-file", function (event) {
+    console.log("文件读取");
+    fs.readFile(configBaseUrl, function (err, value) {
+      console.log("文件已读取");
+      if (err) {
+        console.log(err);
+        const str = JSON.stringify({}, null, "\t");
+        fs.writeFile(configBaseUrl, str, function (err) {
+          if (err) {
+            event.sender.send("read-config-fileCB", {
+              code: "-1",
+              path: configBaseUrl,
+              error: err,
+            });
+          } else {
+            event.sender.send("read-config-fileCB", {
+              code: "0",
+              path: configBaseUrl,
+            });
+          }
+        });
+        event.sender.send("read-config-fileCB", {
+          code: "-2",
+          path: configBaseUrl,
+          error: err,
+        });
+      } else {
+        const redJson = JSON.parse(value.toString());
+        event.sender.send("read-config-fileCB", {
+          ...redJson,
+          configBaseUrl: configBaseUrl,
+          dirname: __dirname,
+        });
+      }
+    });
+  });
+  // 写入配置文件
+  ipcMain.on("write-config-file", function (event, arg) {
+    console.log("写入文件", arg);
+    const str = JSON.stringify(arg, null, "\t");
+    fs.writeFile(configBaseUrl, str, function (err) {
+      if (err) {
+        event.returnValue = {
+          code: "-1",
+          path: configBaseUrl,
+          error: err,
+        };
+      } else {
+        event.returnValue = {
+          code: "0",
+          path: configBaseUrl,
+        };
+      }
+    });
+  });
+
+  let recordBaseUrl = "";
+  if (process.env.NODE_ENV !== "development") {
+    recordBaseUrl = "./errorrecord.json";
+  } else {
+    recordBaseUrl = `${process.cwd()}/errorrecord.json`;
+  }
+  // 读取异常记录文件
+  ipcMain.on("read-error-record-file", function (event) {
+    fs.readFile(recordBaseUrl, function (err, value) {
+      console.log("文件已读取");
+      if (err) {
+        console.log("文件读取错误");
+        console.log(err);
+        const str = JSON.stringify({}, null, "\t");
+        fs.writeFile(recordBaseUrl, str, function (err) {
+          console.log("文件读取错误后写入");
+          if (err) {
+            event.sender.send("read-error-record-fileCB", {
+              code: "-1",
+              path: recordBaseUrl,
+              error: err,
+            });
+          } else {
+            event.sender.send("read-error-record-fileCB", {
+              code: "0",
+              path: recordBaseUrl,
+            });
+          }
+        });
+        console.log("文件读取返回空文件");
+        event.sender.send("read-error-record-fileCB", {});
+      } else {
+        const redJson = JSON.parse(value.toString());
+        event.sender.send("read-error-record-fileCB", redJson);
+      }
+    });
+  });
+  // 写入异常记录文件
+  ipcMain.on("write-error-record-file", function (event, arg) {
+    console.log("写入文件", arg);
+    const str = JSON.stringify(arg, null, "\t");
+    fs.writeFile(recordBaseUrl, str, function (err) {
+      if (err) {
+        event.returnValue = {
+          code: "-1",
+          path: recordBaseUrl,
+          error: err,
+        };
+      } else {
+        event.returnValue = {
+          code: "0",
+          path: recordBaseUrl,
+        };
+      }
+    });
+  });
+  // 打开本地pdf文件
+  ipcMain.on("open-file", function (event, arg) {
+    shell.openPath(arg);
+  });
+}
+app.commandLine.appendSwitch("--ignore-certificate-errors", "true");
+
+// Quit when all windows are closed.
+app.on("window-all-closed", () => {
+  // On macOS it is common for applications and their menu bar
+  // to stay active until the user quits explicitly with Cmd + Q
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+
+app.on("activate", () => {
+  // On macOS it's common to re-create a window in the app when the
+  // dock icon is clicked and there are no other windows open.
+  if (win === null) {
+    createWindow();
+  }
+});
+
+// This method will be called when Electron has finished
+// initialization and is ready to create browser windows.
+// Some APIs can only be used after this event occurs.
+app.on("ready", async () => {
+  // if (isDevelopment && !process.env.IS_TEST) {
+  //   // Install Vue Devtools
+  //   try {
+  //     await installExtension(VUEJS_DEVTOOLS)
+  //   } catch (e) {
+  //     console.error('Vue Devtools failed to install:', e.toString())
+  //   }
+  // }
+  createWindow();
+  function getCAddServer(arg, params) {
+    console.log("注册getCAddServer请求函数");
+    const postData = params && JSON.stringify(params);
+    console.log(postData);
+
+    const request = net.request({
+      url: "http://127.0.0.1:7879/drugregisterservice/operation",
+      method: "POST",
+    });
+    request.setHeader("Content-Type", "application/json");
+    // request.setHeader('Buffer', Buffer.byteLength(postData))
+    params && request.write(postData);
+    // console.log(postData)
+    // console.log('request.on(response')
+    console.log(postData);
+    request.on("response", (response) => {
+      // if (response.statusCode === 200 || response.statusCode === '200') {
+      response.on("data", (chunk) => {
+        // console.log(`${chunk}`)
+        if (chunk) {
+          let resData = {};
+          try {
+            resData = JSON.parse(chunk.toString());
+          } catch (e) {
+            console.log(e);
+          }
+
+          console.log(`${arg}getCAddServerCB回调数据`);
+        }
+      });
+
+      response.on("end", () => {
+        console.log("No more data in response.");
+      });
+    });
+    request.on("error", (error) => {
+     
+    });
+    request.end();
+  }
+  let deviceInfo ={}
+  
+  win.on("minimize", function () {
+    console.log("进入最小化");
+    let params = {
+      module: "realplayplugin",
+      communicationType: "Asynchronous",
+      data: {
+        method: "StopPreview",
+        seq: 2,
+        params: {
+          wnd: {
+            show: 0,
+            stopPlay: 1,
+          },
+          deviceInfo: {
+            ip: deviceInfo.ip,
+            port: deviceInfo.port,
+            username: deviceInfo.username,
+            password: deviceInfo.password,
+            channelNo: 1,
+            streamType: 0,
+          },
+        },
+      },
+    };
+  
+    let params_StopCompareDeploy = {
+      module: "realplayplugin",
+      communicationType: "Asynchronous",
+      data: {
+        method: "StopCompareDeploy",
+        seq: 2,
+        params: {
+          compareType: 1,
+          deviceInfo: {
+            ip: deviceInfo.ip,
+            port: deviceInfo.port,
+            channelNo: 1,
+          },
+        },
+      },
+    };
+    getCAddServer('closeRealPlay',params);
+    getCAddServer('StopCompareDeploy',params_StopCompareDeploy);
+  });
+  win.on("close", (event) => {
+    console.log("进入close");
+    let params = {
+      module: "realplayplugin",
+      communicationType: "Asynchronous",
+      data: {
+        method: "StopPreview",
+        seq: 2,
+        params: {
+          wnd: {
+            show: 0,
+            stopPlay: 1,
+          },
+          deviceInfo: {
+            ip: deviceInfo.ip,
+            port: deviceInfo.port,
+            username: deviceInfo.username,
+            password: deviceInfo.password,
+            channelNo: 1,
+            streamType: 0,
+          },
+        },
+      },
+    };
+  
+    let params_StopCompareDeploy = {
+      module: "realplayplugin",
+      communicationType: "Asynchronous",
+      data: {
+        method: "StopCompareDeploy",
+        seq: 2,
+        params: {
+          compareType: 1,
+          deviceInfo: {
+            ip: deviceInfo.ip,
+            port: deviceInfo.port,
+            channelNo: 1,
+          },
+        },
+      },
+    };
+    getCAddServer('closeRealPlay',params);
+    getCAddServer('StopCompareDeploy',params_StopCompareDeploy);
+    // event.preventDefault();
+  });
+  // const { net } = require('electron')
+  // console.log(commonServer.verifyCodeImage)
+  ipcMain.on("setBaseUrl", function (event, arg) {
+    serverBaseUrl = arg;
+  });
+  ipcMain.on("setToken", function (event, arg) {
+    serverToken = arg;
+  });
+  ipcMain.on("setDeviceInfo", function (event, arg) {
+    console.log('setDeviceInfosetDeviceInfosetDeviceInfosetDeviceInfosetDeviceInfosetDeviceInfosetDeviceInfosetDeviceInfosetDeviceInfosetDeviceInfosetDeviceInfo',arg)
+    deviceInfo = arg;
+  });
+
+  ipcMain.on("getCAddServer",function (event, arg, params, url) {
+    console.log("注册getCAddServer请求函数");
+    const postData = params && JSON.stringify(params);
+    console.log(postData);
+
+    const request = net.request({
+      url: "http://127.0.0.1:7879/drugregisterservice/operation",
+      method: "POST",
+    });
+    request.setHeader("Content-Type", "application/json");
+    // request.setHeader('Buffer', Buffer.byteLength(postData))
+    params && request.write(postData);
+    // console.log(postData)
+    // console.log('request.on(response')
+    console.log(postData);
+    request.on("response", (response) => {
+      // if (response.statusCode === 200 || response.statusCode === '200') {
+      response.on("data", (chunk) => {
+        // console.log(`${chunk}`)
+        if (chunk) {
+          let resData = {};
+          try {
+            resData = JSON.parse(chunk.toString());
+          } catch (e) {
+            console.log(e);
+          }
+
+          event.sender.send(`${arg}getCAddServerCB`, resData);
+          console.log(`${arg}getCAddServerCB回调数据`);
+        } else {
+          event.sender.send(`${arg}getCAddServerCB`, {});
+        }
+      });
+
+      response.on("end", () => {
+        console.log("No more data in response.");
+      });
+    });
+    request.on("error", (error) => {
+      console.log(`${arg}getCAddServerCB: ${error}`);
+      event.sender.send(`${arg}getCAddServerCB`, {
+        code: "-200",
+        msg: error,
+      });
+    });
+    request.end();
+  });
+  
+
+  //接收C++回调信息
+  let isStartElectronServer = false; //判断本地服务是不是已经启动了
+  ipcMain.on("startElectronServer", function (event, arg) {
+    if (isStartElectronServer) {
+      return false;
+    }
+    isStartElectronServer = true;
+    electronServer((data) => {
+      event.sender.send(`startElectronServerCB`, data);
+    });
+  });
+  // console.log('注册getserver请求函数')
+  ipcMain.on("getServer", function (event, arg, params, url) {
+    console.log("注册getserver请求函数");
+    console.log(commonServer[arg]);
+    const postData = params && JSON.stringify(params);
+    if (commonServer[arg]) {
+      const option = commonServer[arg];
+      const baseURL = url || serverBaseUrl;
+      const Token = serverToken;
+      // if (option.url.indexOf('papc-web') > -1) {
+      //   baseURL = 'http://10.16.68.102:8674'
+      // }
+      let optionUrl = option.url;
+      if (optionUrl && params) {
+        // console.log('replaceParams', params)
+        const replaceParams = JSON.parse(JSON.stringify(params));
+        for (const key in replaceParams) {
+          optionUrl.indexOf(`{${key}}`) > -1 &&
+            (optionUrl = optionUrl.replace(`{${key}}`, replaceParams[key]));
+        }
+      }
+      console.log("request  url", baseURL + optionUrl);
+      const request = net.request({
+        url: baseURL + optionUrl,
+        method: option.method,
+      });
+      request.setHeader("Token", Token);
+      request.setHeader("Content-Type", "application/json");
+      request.setHeader("locale", "zh_CN");
+      // request.setHeader('Buffer', Buffer.byteLength(postData))
+      params && request.write(postData);
+      // console.log(postData)
+      // console.log('request.on(response')
+      request.on("response", (response) => {
+        console.log(arg + `response: ${JSON.stringify(response)}`);
+        // if (response.statusCode === 200 || response.statusCode === '200') {
+        response.on("data", (chunk) => {
+          // console.log(`${chunk}`)
+          if (chunk) {
+            let resData = {};
+            try {
+              resData = JSON.parse(chunk);
+            } catch (e) {
+              console.log(e);
+            }
+            console.log(`${arg}CB1111`, resData);
+
+            event.sender.send(`${arg}CB`, resData);
+          } else {
+            event.sender.send(`${arg}CB`, {});
+          }
+        });
+        // } else {
+        //   event.sender.send(`${arg}CB`, { msg: response.statusCode })
+        // }
+        // console.log(`HEADERS: ${JSON.stringify(response.headers)}`)
+
+        response.on("end", () => {
+          console.log("No more data in response.");
+        });
+      });
+      request.on("error", (error) => {
+        console.log(`ERROR网络请求: ${error}`);
+        event.sender.send("serveErrorCB", {
+          code: "-200",
+          msg: "连接服务器失败，请确认IP和端口是否正确",
+        });
+      });
+      request.end();
+    }
+  });
+});
+app.whenReady().then(() => {
+  // win.on('focus', function () {
+  //   globalShortcut.register('Return', () => {
+  //     win.webContents.send('enterCB')
+  //   // Do stuff when Y and either Command/Control is pressed.
+  //   })
+  // })
+  // win.on('blur', function () {
+  //   globalShortcut.unregisterAll()
+  // })
+  // Register a 'CommandOrControl+Y' shortcut listener.
+  // globalShortcut.register('Return', () => {
+  //   console.log('我安可一下')
+  //   // Do stuff when Y and either Command/Control is pressed.
+  // })
+});
+
+// Exit cleanly on request from parent process in development mode.
+if (isDevelopment) {
+  if (process.platform === "win32") {
+    process.on("message", (data) => {
+      if (data === "graceful-exit") {
+        app.quit();
+      }
+    });
+  } else {
+    process.on("SIGTERM", () => {
+      app.quit();
+    });
+  }
+}
+
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (event, commandLine, workingDirectory) => {
+    // 当运行第二个实例时,将会聚焦到myWindow这个窗口
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+
+  // 创建 myWindow, 加载应用的其余部分, etc...
+  app.on("ready", () => {});
+}
+
+// const exec = require('child_process').execFile
+
+// const path = 'c:\\Program Files\\Microsoft Office\\Office12\\winword.exe'
+// exec(path, function (err, data) {
+//   if (err) {
+//     throw err
+//   }
+//   console.log(data.toString())
+// })

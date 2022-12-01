@@ -1,0 +1,240 @@
+const amqp = require('amqplib/callback_api')
+// const rabbitmq = {
+//   hostname: '10.19.141.116',
+//   port: '6005',
+//   username: 'root',
+//   password: 'vo7IHUgR',
+//   // authMechanism: 'AMQPLAIN',
+//   // pathname: '/',
+//   ssl: {
+//     enabled: false
+//   }
+// }
+const os = require('os')
+const networkInterfaces = os.networkInterfaces()
+let clientMac = ''
+let clientIP = ''
+for (const key in networkInterfaces) {
+  networkInterfaces[key].forEach(item => {
+    if (item.family === 'IPv4' && item.address !== '127.0.0.1') {
+      clientMac = item.mac
+      clientIP = item.address
+    }
+  })
+}
+let params = {}
+export function updateParams (p) {
+  params = p
+}
+export default function (params11, callback) {
+  // 连接参数
+  const rabbitmq = {
+    hostname: params.ip,
+    port: params.port,
+    username: params.username,
+    password: params.password,
+    // authMechanism: 'AMQPLAIN',
+    // pathname: '/',
+    ssl: {
+      enabled: false
+    }
+  }
+  console.log('配置参数更新', params)
+  // 连接
+  const connectRabbitMq = function () {
+    if (rabbitmq.hostname) {
+      amqp.connect(rabbitmq, function (error0, connection) {
+        console.log(rabbitmq)
+        console.log('连接成功了！！！！！！！！！！！！！！！！！！！！！！！！')
+        console.log(connection)
+        if (connection) {
+          connection.createChannel(function (error1, channel) {
+            console.log('建立通道！！！！！！！！！！！！！！！！！')
+            // console.log(channel)
+            channel.assertExchange('papc.papc.client.cardmatch', 'topic', { durable: true }, function (exchange) {
+              console.log('连接比对信息交换机！！！！！！！！！！！！！！！！！')
+              channel.assertQueue('queue_name_cardmatch' + clientIP + clientMac, {
+              // channel.assertQueue('', {
+                exclusive: false
+              }, function (error2, q) {
+                console.log('----------------------------------------gzz', q)
+                channel.bindQueue(q.queue, 'papc.papc.client.cardmatch', '#')
+
+                channel.consume(q.queue, msg => {
+                  // {
+                  //   indexCode: '1c477e72e8984efa83bad085ab6dcc6b',
+                  //   traceUuid: null,
+                  //   presonName: null,
+                  //   personIndexCode: null,
+                  //   deptName: null,
+                  //   deptIndexCode: null,
+                  //   personType: null,
+                  //   job: null,
+                  //   matchResult: 1,
+                  //   matchSubResult: 1,
+                  //   ipAddress: '10.16.68.224',
+                  //   deviceIndexCode: '6fa5d618211045d88ec1b3b89ce7576c',
+                  //   certificateNumber: '411527198909104575',
+                  //   currTemperature: '36.79999923706055',
+                  //   thermometryUnit: 'celsius',
+                  //   bkgUrl: 'http://10.19.177.49:6120/pic?AC01F06B0DB04900E21A*hcsd7c865c157f34f99a_2020/cpkf_pic_cover/2338;159764946435835750765?pic*133441*73969*3*AC01F06B0DB04900E21A-2*1597651008',
+                  //   credImgUrl: 'http://10.19.177.49:6120/pic?AC01F06B0DB04900E21A*hcsd7c865c157f34f99a_2020/cpkf_pic_cover/2338;159764946435835750765?pic*207410*38862*4*AC01F06B0DB04900E21A-2*1597651008',
+                  //   faceTime: '2020-08-17T07:57:08.000+0000',
+                  //   bussinessMsgResult: null
+                  // }
+                  const mqMsg = JSON.parse(msg.content)
+                  // console.log('这里是页面配置的配置信息', params.configData)  areaIndexCode
+                  console.log('传递给mq的参数', params)
+                  const callbackData = mqMsg.data
+                  if (callbackData && callbackData.ipAddress && params.configData.deviceIps && params.configData.deviceIps.indexOf(callbackData.ipAddress) > -1 && params.configData.areaIndexCode === callbackData.areaIndexCode) {
+                    console.log('IP匹配成功')
+                    callback(callbackData)
+                  }
+                  console.log('收到消息: ', JSON.parse(msg.content))
+                  // 发送确认消息  areaIndexCode
+                  channel.ack(msg)
+                }, { noAck: false })
+              })
+            })
+            channel.assertExchange('papc.papc.topic.clientconfig', 'topic', { durable: true }, function (exchange) {
+              console.log('连接配置信息交换机！！！！！！！！！！！！！！！！！')
+              channel.assertQueue('queue_name_clientconfig' + clientIP + clientMac, {
+              // channel.assertQueue('', {
+                exclusive: false
+              }, function (error2, q) {
+                console.log(q)
+                console.log('连接队列！！！！！！！！！！！！！！！！！')
+
+                channel.bindQueue(q.queue, 'papc.papc.topic.clientconfig', '#')
+
+                channel.consume(q.queue, msg => {
+                  // {
+                  //   dataType: 'clientconfig',
+                  //   operateType: 'update',
+                  //   data: {
+                  //     configIndexCode: '8ac082ce40f24d15bd6b72020b5a4f9f',
+                  //     projectName: 'XXX留置区123',
+                  //     areaIndexCode: '299301521124403d9546397559da6892',
+                  //     areaType: 'areaType.1',
+                  //     areaName: '留置办案区',
+                  //     registerInMode: 0,
+                  //     registerOutMode: 0,
+                  //     enableBussiness: 1
+                  //   }
+                  // }
+                  const mqMsg = JSON.parse(msg.content)
+                  if (mqMsg.data.areaIndexCode === params.configData.areaIndexCode) {
+                    console.log('当前办案区下配置信息修改配置信息消息: ', mqMsg.data.areaName)
+                    console.log('当前配置信息: ', params.configData)
+                    callback(mqMsg)
+                  }
+
+                  console.log('收到配置信息消息: ', mqMsg)
+                  // 发送确认消息
+                  channel.ack(msg)
+                }, { noAck: false })
+              })
+            })
+            channel.assertExchange('inqfd.rms.topic.area_change', 'topic', { durable: true }, function (exchange) {
+              console.log('连接配置信息交换机！！！！！！！！！！！！！！！！！')
+              channel.assertQueue('queue_name_area_change' + clientIP + clientMac, {
+              // channel.assertQueue('', {
+                exclusive: false
+              }, function (error2, q) {
+                console.log(q)
+                console.log('连接队列！！！！！！！！！！！！！！！！！')
+
+                channel.bindQueue(q.queue, 'inqfd.rms.topic.area_change', '#')
+
+                channel.consume(q.queue, msg => {
+                  // {
+                  //   dataType: 'clientconfig',
+                  //   operateType: 'update',
+                  //   data: {
+                  //     configIndexCode: '8ac082ce40f24d15bd6b72020b5a4f9f',
+                  //     projectName: 'XXX留置区123',
+                  //     areaIndexCode: '299301521124403d9546397559da6892',
+                  //     areaType: 'areaType.1',
+                  //     areaName: '留置办案区',
+                  //     registerInMode: 0,
+                  //     registerOutMode: 0,
+                  //     enableBussiness: 1
+                  //   }
+                  // }
+                  const mqMsg = JSON.parse(msg.content)
+
+                  console.log('收到办案区变更信息: ', mqMsg)
+                  console.log('收到办案区变更信息list: ', mqMsg.data.list)
+                  const areaList = mqMsg.data.list
+                  if (areaList.length > 0) {
+                    areaList.forEach((item) => {
+                      if (item.clientIp === params.configData.clientIP) {
+                        callback(mqMsg)
+                      }
+                    })
+                  }
+
+                  // 发送确认消息
+                  channel.ack(msg)
+                }, { noAck: false })
+              })
+            })
+            channel.assertExchange('inqfd.rms.topic.subarea_change', 'topic', { durable: true }, function (exchange) {
+              console.log('连接配置信息交换机！！！！！！！！！！！！！！！！！')
+              channel.assertQueue('queue_name_subarea_change' + clientIP + clientMac, {
+              // channel.assertQueue('', {
+                exclusive: false
+              }, function (error2, q) {
+                console.log(q)
+                console.log('连接队列！！！！！！！！！！！！！！！！！')
+
+                channel.bindQueue(q.queue, 'inqfd.rms.topic.subarea_change', '#')
+
+                channel.consume(q.queue, msg => {
+                  // {
+                  //   dataType: 'clientconfig',
+                  //   operateType: 'update',
+                  //   data: {
+                  //     configIndexCode: '8ac082ce40f24d15bd6b72020b5a4f9f',
+                  //     projectName: 'XXX留置区123',
+                  //     areaIndexCode: '299301521124403d9546397559da6892',
+                  //     areaType: 'areaType.1',
+                  //     areaName: '留置办案区',
+                  //     registerInMode: 0,
+                  //     registerOutMode: 0,
+                  //     enableBussiness: 1
+                  //   }
+                  // }
+                  const mqMsg = JSON.parse(msg.content)
+                  console.log('收到办案区变更信息: ', mqMsg)
+                  console.log('收到办案区变更信息list: ', mqMsg.data.list)
+                  const areaList = mqMsg.data.list
+                  if (areaList.length > 0) {
+                    areaList.forEach((item) => {
+                      if (item.clientIp === params.configData.clientIP) {
+                        callback(mqMsg)
+                      }
+                    })
+                  }
+                  // 发送确认消息
+                  channel.ack(msg)
+                }, { noAck: false })
+              })
+            })
+          })
+          console.log(connection.on)
+          connection.on('error', function (err) {
+            console.log(err)
+            connectRabbitMq()
+          })
+        } else {
+          connectRabbitMq()
+        }
+      })
+    } else {
+      console.log('mq参数获取失败')
+    }
+  }
+
+  connectRabbitMq()
+}

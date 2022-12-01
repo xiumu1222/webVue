@@ -1,0 +1,49 @@
+// const path = require('path')
+const http = require("http");
+// const fs = require('fs')
+// const os = require('os')
+const url = require("url");
+const querystring = require("querystring");
+function electronServer(callback) {
+  const server = http.createServer();
+  server.on("request", (request, response) => {
+    //根据req的Url判断是什么地址，做出不同响应
+    if (request.url === "/drugregisterclient/msgCallback") {
+     
+
+      //get请求
+      // console.log(url.parse(request.url, true).query); //获取url后面传过来的参数，返回一个对象
+      
+
+      //post请求
+      // 定义了一个post变量，用于暂存请求体的信息
+      var post = '';
+      // 通过req的data事件监听函数，每当接受到请求体的数据，就累加到post变量中
+      request.on('data', function(chunk){
+          post += chunk;
+      });
+
+      // 在end事件触发后，通过querystring.parse将post解析为真正的POST请求格式，然后向客户端返回。
+      request.on('end', function(){
+          post = JSON.parse(post);
+          // console.log(post)
+          callback(post);
+          response.end('success');
+      });
+
+      // //设置响应头
+      // //状态码200 ，文件类型 html，字符集 utf-8
+      // res.writeHead(200, {"content-type": "text/html; charset=utf-8"});
+      // //设置页面编码（不然返回中文会乱码）
+      // res.write("<head><meta charset='utf-8'/></head>")
+      // res.write('this is nodejs');
+
+      // response.end('success'); //结束响应
+    }
+  });
+  server.listen(7878, "127.0.0.1", () => {
+    console.log("127.0.0.1:7878服务启动");
+    callback({ msg: "127.0.0.1:7878服务启动" }, {});
+  });
+}
+export default electronServer;
